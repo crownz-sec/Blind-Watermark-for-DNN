@@ -19,6 +19,7 @@ def SpecifiedLabel(OriginalLabel):
     targetlabel = targetlabel % 10
     return targetlabel
 '''
+# 参数设置
 GPU ='4,5'
 os.environ['CUDA_VISIBLE_DEVICES'] =GPU
 parser = argparse.ArgumentParser(
@@ -42,6 +43,7 @@ parser.add_argument('--wm_train', type=bool, default=True,
                     help='whther to watermark  pre-trained model')
 args = parser.parse_args()
 
+# 加载cuda设置
 if torch.cuda.is_available():
     cudnn.benchmark = True
     if args.seed is not None:
@@ -58,6 +60,7 @@ if torch.cuda.is_available():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
         '''
+
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
@@ -66,6 +69,7 @@ from models import SSIM
 from models import *
 from models.Discriminator import DiscriminatorNet, DiscriminatorNet_mnist
 from models.HidingUNet import UnetGenerator, UnetGenerator_mnist
+
 # save code each time
 if args.train:
     cur_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
@@ -73,15 +77,15 @@ if args.train:
     os.makedirs(args.save_path+'images', exist_ok=True)
     os.makedirs(args.save_path+'checkpiont', exist_ok=True)
     os.makedirs(args.save_path+'models', exist_ok=True)
-    os.mknod(args.save_path + "models/main.py")
-    os.mknod(args.save_path + "models/HidingUNet.py")
-    os.mknod(args.save_path + "models/Discriminator.py")
+    # os.mknod(args.save_path + "models/main.py")
+    # os.mknod(args.save_path + "models/HidingUNet.py")
+    # os.mknod(args.save_path + "models/Discriminator.py")
     shutil.copyfile('main.py', args.save_path + "models/main.py")
     shutil.copyfile('models/HidingUNet.py',
                     args.save_path + 'models/HidingUNet.py')
     shutil.copyfile('models/Discriminator.py',
                     args.save_path + 'models/Discriminator.py')
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 # Preparing Data
 print('==> Preparing data..')
 if args.dataset == 'cifar10':
@@ -103,6 +107,7 @@ if args.dataset == 'cifar10':
         root=args.dataroot, train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=args.batchsize, shuffle=False, num_workers=2, drop_last=True)
+    
     # load the 1% origin sample
     trigger_set = torchvision.datasets.CIFAR10(
         root=args.dataroot, train=True, download=True, transform=transform_test)
@@ -113,13 +118,15 @@ if args.dataset == 'cifar10':
     ieee_logo = torchvision.datasets.ImageFolder(
         root=args.dataroot+'/IEEE', transform=transform_test)
     ieee_loader = torch.utils.data.DataLoader(ieee_logo, batch_size=1)
+    
     for _, (logo, __) in enumerate(ieee_loader):
         secret_img = logo.expand(
-            args.wm_batchsize, logo.shape[1], logo.shape[2], logo.shape[3]).cuda()
+            args.wm_batchsize, logo.shape[1], logo.shape[2], logo.shape[3]) #.cuda()
 elif args.dataset == 'mnist':
     transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))])
+    
     # load trainset and testset
     trainset = torchvision.datasets.MNIST(
         root=args.dataroot, train=True, download=True, transform=transform)
@@ -129,26 +136,28 @@ elif args.dataset == 'mnist':
         root=args.dataroot, train=False, download=True, transform=transform)
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=args.batchsize, shuffle=False, num_workers=2, drop_last=True)
+    
     # load the 1% origin sample 
     trigger_set = torchvision.datasets.MNIST(
         root=args.dataroot, train=True, download=True, transform=transform)
     trigger_loader = torch.utils.data.DataLoader(
         trigger_set, batch_size=args.wm_batchsize, shuffle=False, num_workers=2, drop_last=True)
+    
     # load logo
     for _, (logo, l) in enumerate(testloader):
         for k in range(args.batchsize):
             if l[k].cpu().numpy() == 1:
                 logo = logo[k:k+1]
                 break
-        secret_img = logo.expand(args.wm_batchsize, logo.shape[1], logo.shape[2], logo.shape[3]).cuda()
+        secret_img = logo.expand(args.wm_batchsize, logo.shape[1], logo.shape[2], logo.shape[3])    #.cuda()
         break
 
-# get the watermark-cover images foe each batch
+# get the watermark-cover images for each batch
 wm_inputs, wm_cover_labels = [], []
 #wm_labels = []
 if args.wm_train:
     for wm_idx, (wm_input, wm_cover_label) in enumerate(trigger_loader):
-        wm_input, wm_cover_label = wm_input.cuda(), wm_cover_label.cuda()
+        # wm_input, wm_cover_label = wm_input.cuda(), wm_cover_label.cuda()
         wm_inputs.append(wm_input)
         wm_cover_labels.append(wm_cover_label)
         #wm_labels.append(SpecifiedLabel(wm_cover_label))
@@ -157,19 +166,21 @@ if args.wm_train:
             break
         elif args.dataset == 'mnist' and wm_idx == (int(args.wm_num[1]/args.wm_batchsize)-1):
             break
-# Adversarial ground truths
 
-valid = torch.cuda.FloatTensor(args.wm_batchsize, 1).fill_(1.0)
-fake = torch.cuda.FloatTensor(args.wm_batchsize, 1).fill_(0.0)
+# Adversarial ground truths
+# 随机分配水印图片的标签
+# valid = torch.cuda.FloatTensor(args.wm_batchsize, 1).fill_(1.0)
+# fake = torch.cuda.FloatTensor(args.wm_batchsize, 1).fill_(0.0)
+valid = torch.FloatTensor(args.wm_batchsize, 1).fill_(1.0)
+fake = torch.FloatTensor(args.wm_batchsize, 1).fill_(0.0)
 if args.dataset == 'cifar10':
     np_labels = np.random.randint(
         10, size=(int(args.wm_num[0]/args.wm_batchsize), args.wm_batchsize))
 elif args.dataset == 'mnist':
     np_labels = np.random.randint(
         10, size=(int(args.wm_num[1]/args.wm_batchsize), args.wm_batchsize))
-wm_labels = torch.from_numpy(np_labels).cuda()
+wm_labels = torch.from_numpy(np_labels)# .cuda()
 
-#wm_labels = SpecifiedLabel()
 best_real_acc, best_wm_acc, best_wm_input_acc = 0, 0, 0
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 train_loss, test_loss = [[], []], [[], []]
@@ -192,20 +203,26 @@ Dnnet = VGG('VGG19')
 #Dnnet = MobileNetV2()
 #Dnnet = DPN26()
 
+# 多卡训练的GPU加速
+# Hidnet = nn.DataParallel(Hidnet.cuda())
+# Disnet = nn.DataParallel(Disnet.cuda())
+# Dnnet = nn.DataParallel(Dnnet.cuda())
 
-Hidnet = nn.DataParallel(Hidnet.cuda())
-Disnet = nn.DataParallel(Disnet.cuda())
-Dnnet = nn.DataParallel(Dnnet.cuda())
-
-criterionH_mse = nn.MSELoss()
+# 编码器相关定义（在这个框架中，功能也类似于生成器，功能：生成的盲水印图片要尽可能跟真图片相似）
+# 均方损失函数
+criterionH_mse = nn.MSELoss()   # loss(xi,yi)=(xi−yi)^2
 criterionH_ssim = SSIM()
 optimizerH = optim.Adam(Hidnet.parameters(), lr=args.lr[0], betas=(0.5, 0.999))
 schedulerH = ReduceLROnPlateau(optimizerH, mode='min', factor=0.2, patience=5, verbose=True)
 
+# 鉴别器相关定义（功能：鉴别编码器生成的图片是否加了水印）
+# 二分类交叉熵损失函数
 criterionD = nn.BCELoss()
 optimizerD = optim.Adam(Disnet.parameters(), lr=args.lr[0], betas=(0.5, 0.999))
 schedulerD = ReduceLROnPlateau(optimizerD, mode='min', factor=0.2, patience=8, verbose=True)
 
+# 宿主模型相关定义（功能：跟常规的backdoor水印方法类似，接收上面两个模型输出关键样本，和正常样本一同训练，以嵌入水印）
+# 多分类交叉熵损失函数
 criterionN = nn.CrossEntropyLoss()
 optimizerN = optim.SGD(Dnnet.parameters(), lr=args.lr[1], momentum=0.9, weight_decay=5e-4)
 schedulerN = MultiStepLR(optimizerN, milestones=[40, 80], gamma=0.1)
@@ -222,35 +239,42 @@ def train(epoch):
     real_acc = AverageMeter()
     wm_acc = AverageMeter()
     for batch_idx, (input, label) in enumerate(trainloader):
-        input, label = input.cuda(), label.cuda()
+        # input, label = input.cuda(), label.cuda()
+        # 依据idx，取出一批水印图片用来训练
         wm_input = wm_inputs[(wm_idx + batch_idx) % len(wm_inputs)]
         wm_label = wm_labels[(wm_idx + batch_idx) % len(wm_inputs)]
+        # wm_cover_label 是不加水印logo之前的正确标签
         wm_cover_label = wm_cover_labels[(wm_idx + batch_idx) % len(wm_inputs)]
-        #############Discriminator##############
+        
+        ############# Discriminator-鉴别器 ##############
         optimizerD.zero_grad()
         wm_img = Hidnet(wm_input, secret_img)
         wm_dis_output = Disnet(wm_img.detach())
         real_dis_output = Disnet(wm_input)
+        # 假图片要接近假图片，真图片要接近真图片，否则就惩罚，这是鉴别器的损失函数思想
         loss_D_wm = criterionD(wm_dis_output, fake)
         loss_D_real = criterionD(real_dis_output, valid)
         loss_D = loss_D_wm + loss_D_real
         loss_D.backward()
         optimizerD.step()
-        ################Hidding Net#############
+        
+        ################ Hidding Net-编码器 #############
         optimizerH.zero_grad()
         optimizerD.zero_grad()
         optimizerN.zero_grad()
-        wm_dis_output = Disnet(wm_img)
-        wm_dnn_output = Dnnet(wm_img)
-        loss_mse = criterionH_mse(wm_input, wm_img)
-        loss_ssim = criterionH_ssim(wm_input, wm_img)
-        loss_adv = criterionD(wm_dis_output, valid)
-      
-        loss_dnn = criterionN(wm_dnn_output, wm_label)
+        wm_dis_output = Disnet(wm_img)      # 水印图片的鉴别器输出
+        wm_dnn_output = Dnnet(wm_img)       # 水印图片的宿主模型输出
+        # 跟论文中的损失函数依次照应
+        loss_mse = criterionH_mse(wm_input, wm_img)     # 均方损失，考虑像素点之间的误差
+        loss_ssim = criterionH_ssim(wm_input, wm_img)   # 图像的结构相似性损失，考虑图像基础性质（纹理、结构等）的误差
+        loss_adv = criterionD(wm_dis_output, valid)     # 编码器生成的假图片要尽可能被判别为1
+        loss_dnn = criterionN(wm_dnn_output, wm_label)  # 在宿主模型中，编码器生成的假图片要尽可能接近正常的标签
+
         loss_H = args.hyper_parameters[0] * loss_mse + args.hyper_parameters[1] * (1-loss_ssim) + args.hyper_parameters[2] * loss_adv + args.hyper_parameters[3] * loss_dnn
         loss_H.backward()
         optimizerH.step()
-        ################DNNet#############
+        
+        ################ DNNet-宿主模型 #############
         optimizerN.zero_grad()
         inputs = torch.cat([input, wm_img.detach()], dim=0)
         labels = torch.cat([label, wm_label], dim=0)
@@ -307,7 +331,7 @@ def test(epoch):
     DNNlosses = AverageMeter()
     with torch.no_grad():
         for batch_idx, (input, label) in enumerate(testloader):
-            input, label = input.cuda(), label.cuda()
+            # input, label = input.cuda(), label.cuda()
             wm_input = wm_inputs[(wm_idx + batch_idx) % len(wm_inputs)]
             wm_label = wm_labels[(wm_idx + batch_idx) % len(wm_inputs)]
             wm_cover_label = wm_cover_labels[(
@@ -456,10 +480,10 @@ def save_loss_acc(epoch, loss, acc, train):
     plt.close()
 
 
-for epoch in range(args.num_epochs):
-    train(epoch)
-    val_hloss, val_disloss, val_dnnloss, acc, wm_acc, wm_inut_acc = test(epoch)
-    schedulerH.step(val_hloss)
-    schedulerD.step(val_disloss)
-    schedulerN.step()
-
+if __name__ == "__main__":
+    for epoch in range(args.num_epochs):
+        train(epoch)
+        val_hloss, val_disloss, val_dnnloss, acc, wm_acc, wm_inut_acc = test(epoch)
+        schedulerH.step(val_hloss)
+        schedulerD.step(val_disloss)
+        schedulerN.step()

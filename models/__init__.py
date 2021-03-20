@@ -13,6 +13,12 @@ from math import exp
 
 
 def gaussian(window_size, sigma):
+    """
+    高斯核函数, 解析: https://blog.csdn.net/Rocky6688/article/details/108078006
+    window_size: 核大小
+    sigma: 调节高斯函数对高低频信息的保留程度σ
+
+    """
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
     return gauss / gauss.sum()
 
@@ -21,10 +27,21 @@ def create_window(window_size, channel):
     _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
     _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
     window = Variable(_2D_window.expand(channel, 1, window_size, window_size).contiguous())
+    print("window.size()", window.size())
     return window
 
 
 def _ssim(img1, img2, window, window_size, channel, size_average=True):
+    """
+    SSIM的公式实现，可参照: https://blog.csdn.net/sinat_36438332/article/details/88173349
+    img1, img2:
+    window: 高斯核大小
+    window_size: 高斯核
+    channel: 通道数
+    size_average: 是否返回所有的平均值
+    """
+    # window包含所计算出来的高斯函数值，相当于计算均值mu和标准差sigma中的权重omega
+    # 更直观的理解，对img应用window大小的高斯卷积核，做图像处理
     mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=channel)
     mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=channel)
 
@@ -82,6 +99,3 @@ def ssim(img1, img2, window_size=11, size_average=True):
     window = window.type_as(img1)
 
     return _ssim(img1, img2, window, window_size, channel, size_average)
-
-#######################
-

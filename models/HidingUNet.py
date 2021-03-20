@@ -34,11 +34,14 @@ class UnetGenerator_mnist(nn.Module):
 
 
     def forward(self, input, sec_img):
+        # 分别处理real_img和logo_img，之后将两者拼接
         real_img_feature = self.unet_block_real_img(input)
         sec_img_feature = self.unet_block_sec_img(sec_img)
         contain_img = torch.cat([real_img_feature, sec_img_feature], dim=1)
         output = self.model(contain_img)
         return output
+
+
 class UnetGenerator(nn.Module):
     def __init__(self, input_nc=6, output_nc=3, num_downs=6, ngf=64,
                  norm_layer=nn.BatchNorm2d, use_dropout=False, output_function=nn.Tanh):

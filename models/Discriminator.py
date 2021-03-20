@@ -47,6 +47,8 @@ class DiscriminatorNet(nn.Module):
 
         out = self.linear(out)
         return out
+
+
 class DiscriminatorNet_mnist(nn.Module):
     def __init__(self):#3072):
         super(DiscriminatorNet_mnist, self).__init__()
